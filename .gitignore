@@ -1,0 +1,18 @@
+# 忽略 .env 文件（最重要）
+.env
+
+# 忽略虚拟环境文件夹（强烈推荐）
+.venv/
+venv/
+env/
+
+# 其他常见忽略（可选，但建议加）
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+*.log

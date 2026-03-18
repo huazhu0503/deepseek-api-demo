@@ -1,0 +1,240 @@
+chatgpt
+
+import requests
+import datetime
+import json
+from dotenv import load_dotenv
+import os
+
+# 加载 .env 文件中的环境变量
+load_dotenv()
+
+# 从环境变量中获取 API 密钥
+API_KEY = os.getenv("API_KEY")
+
+# Deepseek API 设置
+DEEPSEEK_API_URL = "https://api.deepseek.com/v1/ai-news"  # 请替换为实际的 Deepseek API 地址
+
+# 获取当天日期
+today = datetime.datetime.today().strftime('%Y-%m-%d')
+
+# 请求 Deepseek API 获取当天的 AI 新闻
+def fetch_ai_news():
+    params = {
+        'date': today,
+        'api_key': API_KEY  # 使用从 .env 文件加载的 API 密钥
+    }
+    
+    try:
+        response = requests.get(DEEPSEEK_API_URL, params=params)
+        response.raise_for_status()  # 如果请求失败，会抛出异常
+        
+        # 假设返回的数据格式包含 'news' 键
+        news_data = response.json()
+
+        # 检查是否包含新闻数据
+        if 'news' not in news_data:
+            print("没有找到相关新闻数据")
+            return []
+
+        # 格式化新闻数据
+        news_list = []
+        for item in news_data['news']:
+            news_item = {
+                'title': item.get('title', '无标题'),
+                'source': item.get('source', '未知来源'),
+                'date': item.get('date', '未知时间'),
+                'description': item.get('description', '无简要描述'),
+            }
+            news_list.append(news_item)
+
+        return news_list
+    except requests.exceptions.RequestException as e:
+        print(f"请求错误: {e}")
+        return []
+
+# 格式化输出日报
+def print_news_to_console(news_list):
+    if not news_list:
+        print("没有获取到最新的 AI 新闻")
+        return
+
+    print(f"AI 新闻日报 ({today}):\n")
+    for idx, news in enumerate(news_list, start=1):
+        print(f"{idx}. {news['title']}")
+        print(f"   来源: {news['source']}")
+        print(f"   时间: {news['date']}")
+        print(f"   描述: {news['description']}\n")
+
+# 保存新闻到文件
+def save_news_to_file(news_list):
+    if not news_list:
+        print("没有获取到最新的 AI 新闻，无法保存文件")
+        return
+
+    # 保存为文件
+    file_name = f"AI_News_{today}.txt"
+    with open(file_name, 'w', encoding='utf-8') as file:
+        file.write(f"AI 新闻日报 ({today}):\n\n")
+        for idx, news in enumerate(news_list, start=1):
+            file.write(f"{idx}. {news['title']}\n")
+            file.write(f"   来源: {news['source']}\n")
+            file.write(f"   时间: {news['date']}\n")
+            file.write(f"   描述: {news['description']}\n\n")
+    print(f"新闻已保存到 {file_name}")
+
+# 主函数
+def main():
+    news_list = fetch_ai_news()
+    print_news_to_console(news_list)  # 打印到控制台
+    save_news_to_file(news_list)     # 保存为文件
+
+if __name__ == "__main__":
+    main()
+
+
+豆包
+import os
+import json
+import datetime
+from dotenv import load_dotenv
+import requests
+from bs4 import BeautifulSoup
+
+# 加载环境变量（读取 .env 中的 API 密钥）
+load_dotenv()
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+# DeepSeek API 地址（官方标准接口）
+DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
+
+def get_today_date():
+    """获取当天日期，用于筛选新闻"""
+    return datetime.datetime.now().strftime("%Y-%m-%d")
+
+def fetch_latest_ai_news():
+    """
+    抓取公开AI新闻源（机器之心 + AI前线）
+    返回当天的原始新闻列表
+    """
+    news_sources = [
+        "https://www.jiqizhixin.com/topics/3",  # 机器之心-AI行业
+        "https://www.aixinzhijia.com/news"       # AI前线
+    ]
+    
+    today = get_today_date()
+    raw_news = []
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
+
+    for url in news_sources:
+        try:
+            response = requests.get(url, headers=headers, timeout=10)
+            soup = BeautifulSoup(response.text, "html.parser")
+            
+            # 通用新闻提取逻辑（适配主流科技媒体）
+            articles = soup.find_all("article")[:10]  # 取前10条
+            for article in articles:
+                title = article.find("h2") or article.find("h3")
+                time_elem = article.find("time")
+                source = url.split("//")[1].split("/")[0]
+                
+                if title and time_elem:
+                    news_time = time_elem.get_text(strip=True)
+                    # 只保留当天新闻
+                    if today in news_time:
+                        raw_news.append({
+                            "title": title.get_text(strip=True),
+                            "time": news_time,
+                            "source": source,
+                            "content": article.get_text(strip=True)[:500]  # 截取内容
+                        })
+        except Exception as e:
+            print(f"抓取 {url} 失败：{str(e)}")
+    
+    return raw_news
+
+def extract_news_with_deepseek(raw_news):
+    """
+    调用 DeepSeek API 结构化提取新闻
+    返回标准日报格式数据
+    """
+    if not raw_news:
+        return "今日暂无最新AI新闻"
+
+    # 构造prompt，要求AI输出标准JSON格式
+    prompt = f"""
+    你是AI新闻编辑，请基于以下原始新闻，生成【AI行业日报】。
+    要求：
+    1. 每条新闻包含：标题、来源、发布时间、简要描述（100字内）
+    2. 只输出标准JSON格式，不要多余文字
+    3. 严格保留当天日期：{get_today_date()}
+    4. 语言简洁、专业
+    
+    原始新闻：{json.dumps(raw_news, ensure_ascii=False)}
+    """
+
+    headers = {
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "model": "deepseek-chat",
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.3  # 低温度，保证输出稳定
+    }
+
+    try:
+        response = requests.post(DEEPSEEK_API_URL, headers=headers, json=data, timeout=30)
+        result = response.json()
+        return json.loads(result["choices"][0]["message"]["content"])
+    except Exception as e:
+        return f"DeepSeek API 调用失败：{str(e)}"
+
+def generate_ai_daily_report():
+    """生成并输出AI日报"""
+    print("=" * 60)
+    print(f"📅 AI 行业日报 - {get_today_date()}")
+    print("=" * 60)
+
+    # 1. 抓取当天新闻
+    print("🔍 正在抓取最新AI新闻...")
+    raw_news = fetch_latest_ai_news()
+
+    # 2. AI 结构化提取
+    print("🤖 正在通过DeepSeek处理新闻数据...")
+    daily_report = extract_news_with_deepseek(raw_news)
+
+    # 3. 控制台输出日报
+    print("\n✅ 日报生成完成：\n")
+    if isinstance(daily_report, list):
+        for idx, news in enumerate(daily_report, 1):
+            print(f"【{idx}】{news.get('标题', '无标题')}")
+            print(f"⏰ 时间：{news.get('发布时间', '无时间')}")
+            print(f"🔗 来源：{news.get('来源', '无来源')}")
+            print(f"📝 摘要：{news.get('简要描述', '无描述')}\n")
+    else:
+        print(daily_report)
+
+    # 4. 保存为文件
+    filename = f"AI日报_{get_today_date()}.txt"
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(f"AI 行业日报 - {get_today_date()}\n")
+        f.write("=" * 60 + "\n")
+        if isinstance(daily_report, list):
+            for idx, news in enumerate(daily_report, 1):
+                f.write(f"【{idx}】{news.get('标题', '无标题')}\n")
+                f.write(f"时间：{news.get('发布时间', '无时间')}\n")
+                f.write(f"来源：{news.get('来源', '无来源')}\n")
+                f.write(f"摘要：{news.get('简要描述', '无描述')}\n\n")
+        else:
+            f.write(str(daily_report))
+    
+    print(f"💾 日报已保存至文件：{filename}")
+    print("=" * 60)
+
+# 主程序入口
+if __name__ == "__main__":
+    generate_ai_daily_report()
